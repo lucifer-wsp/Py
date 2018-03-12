@@ -1,0 +1,456 @@
+python学习点 --3.4下亲测有效！
+
+1.参数传递: 可变对象的传递，函数内部的修改会改变外部引用的值。
+def func(a):
+    if type(a) == list:
+        a.append('func')
+    else:
+        a = 'func'
+    print('func return a is %s'%(a))
+
+a = 1
+b = [1,2]
+print(a)
+print(b)
+func(a)
+func(b)
+print(a)
+print(b)
+
+2.实例变量和类变量：同上原理，可变对象的类变量会被实例修改。
+class Var():
+    v1 = 'aaa'
+    v2 = []
+
+c1 = Var()
+c2 = Var()
+c1.v1 = 'bbb'
+c1.v2.append(1)
+c2.v1 = 'ccc'
+c2.v2.append(2)
+
+print(c1.v1)
+print(c1.v2)
+print(c2.v1)
+print(c2.v2)
+print(Var.v1)
+print(Var.v2)
+
+3.类的classmethod和staticmethod
+class Method():
+    def test(self, x):
+        print('instance x is %s'%(x))
+    @classmethod
+    def ctest(cls, x):
+        print('class x is %s'%(x))
+    @staticmethod
+    def stest(x):
+        print('static x is %s'%(x))
+
+mc = Method()
+mc.test(1)
+mc.ctest(2)
+mc.stest(3)
+
+#不可用 - Method.test()
+Method.ctest(4)
+Method.stest(5)
+
+4.python的单下划线和双下划线
+class MyClass():
+    def __init__(self):
+        self.__super = 'hello'
+        self._sem = 'qe'
+
+c = MyClass()
+print(dir(c))
+if '__super' in dir(c):
+    print(c.__super)
+
+print(c._sem)
+print(c._MyClass__super)
+
+__foo__: 通常定义python内部名字，用以区分用户命名
+_foo : 通常定义类的私有成员
+__foo : 解析成_ClassName__foo
+
+5.元类 __metaclass__：元类其实就是用来创建类的类，python中默认type类是所有类的元类
+
+class MetaClass():
+    pass
+
+print(MetaClass.__class__)
+
+类对象创建的基本流程：
+解释器先在当前类寻找__metaclass__，如果有，就是用__metaclass__创建；
+如果没有，就在父类中查找并作如上操作。如果父类中没有，就会在module中查找并做如上操作，如果也没有，就会使用内置的type来创建。
+
+自定义元类 ： 将类的所有属性名称修改成大写的
+
+class MetaClass(type):
+    def __new__(cls, names, bases, attrs):
+        print(names)
+        print(bases)
+        print(attrs)
+        attrs_dict = dict([(key.upper(), var) for key,var in attrs.items() if not key.startswith('__')])
+        return super(MetaClass, cls).__new__(cls, names, bases, attrs_dict)
+
+class CreateClass(metaclass=MetaClass):
+    #python2.7中的语法 __metaclass__ = MetaClass
+    bar = 'create_class_bar'
+    def __init__(self):
+        self.fire = 'init_fire'
+
+cc = CreateClass()
+
+
+5.*args， **kwargs的用法：传递不定数量的参数和不定参数名的参数
+def vfun(name, *args, **kwargs):
+    print(name)
+    for v in args:
+        print(v)
+    for k,v in kwargs.items():
+        print(k,v)
+
+v1 = [1,'2', 3.1]
+v2 = {'four': 4, 'five': 5}
+vfun('hell', *v1, **v2)
+
+
+6.AOP和装饰器：切面编程即编程过程中需要对程序进行一些性能调试、日志记录、函数功能扩展的同时，不需要重写原函数，使用装饰器来实现。
+
+def benchmark(func):
+    print('benchmark 1...')
+    import time
+    def bwrapper(*args, **kwargs):
+        t = time.clock()
+        res = func(*args, **kwargs)
+        print('benchmark', func.__name__, args, kwargs)
+        return res
+    print('benchmark 2...')
+    return bwrapper
+
+def logging(func):
+    print('logging 1...')
+    def lwrapper(*args, **kwargs):
+        res = func(*args, **kwargs)
+        print('logging', func.__name__, args, kwargs)
+        return res
+    print('logging 2...')
+    return lwrapper
+
+def counter(func):
+    print('counter 1...')
+    def cwrapper(*args, **kwargs):
+        cwrapper.count = cwrapper.count + 1
+        res = func(*args, **kwargs)
+        print("{0} has been used: {1}x".format(func.__name__, cwrapper.count))
+        return res
+    cwrapper.count = 0
+    print('counter 2...')
+    return cwrapper
+
+@counter
+@benchmark
+@logging
+def reverse_string(string):
+    res = ''
+    for c in list(reversed(string)):
+        res += c
+    return res
+
+print(reverse_string("Able was i ere i saw elba"))
+print('---------------')
+print(reverse_string("Able was i ere i saw elba"))
+print('---------------')
+print(reverse_string.__name__)
+
+def bar(func):
+    def wrapper(*args, **kwargs):
+        func(*args, **kwargs)
+        print(func.__name__, args, kwargs)
+    return wrapper
+
+@bar
+def foo(string):
+    print(string)
+
+foo("hello, name test !")
+print(foo.__name__)
+
+同一个函数可以有多个装饰器，装饰器的执行顺序和装饰器的添加顺序相反。装饰器内返回的函数在被装饰函数调用时才执行。
+
+7.鸭子类型：python中具有相同行为的对象当作同一类对象使用
+l = []
+a = [1,2,3]
+b = (4,5,6)
+c = {'one': 1, 'two': 2}
+l.extend(a)
+l.extend(b)
+l.extend(c)
+print(l)
+
+8.单例模式
+1）__new__方法：
+class Singleton():
+    def __new__(cls, *args, **kwargs):
+        if not hasattr(cls, '_instance'):
+            orig = super(Singleton, cls)
+            cls._instance = orig.__new__(cls, *args, **kwargs)
+        return cls._instance
+
+class MyClass(Singleton):
+    a = 1
+
+mc1 = MyClass()
+mc2 = MyClass()
+print(mc1)
+print(mc2)
+s1 = Singleton()
+s2 = Singleton()
+print(s1)
+print(s2)
+
+2)装饰器
+def singleton(cls, *args, **kwargs):
+    instance = {}
+    def get_instance():
+        if cls not in instance:
+            instance[cls] = cls(*args, **kwargs)
+        return instance[cls]
+    return get_instance
+
+@singleton
+class MyClass2():
+    a = 1
+
+mc3 = MyClass2()
+mc4 = MyClass2()
+print(mc3)
+print(mc4)
+
+3)使用import
+#define mysingleton.py
+class Singleton():
+    a = 1
+    def foo(self):
+        self.x = 1
+        print(self.x)
+
+single = Singleton()
+
+#call use.py
+from mysingleton import single
+
+9.GIL
+全局排它锁，仅仅是python解析器为了充分利用多核的多线程而引入的一个锁机制。
+在io密集型上多线程的执行效率优于单线程，当至少有一个cpu密集型线程时，程序的执行效率都会大幅降低。
+解决方案： 使用多进程和使用没有GIL的解释器。
+
+10.协程
+def grep(pattern):
+    print('Search for %s'%(pattern))
+    while True:
+        line = (yield)
+        if pattern in line:
+            print(line)
+
+search = grep('coroutine')
+next(search)
+search.send('i love you')
+search.send("Don't you love me")
+search.send('i love coroutine.')
+search.close()
+
+11.闭包 -- 函数式编程
+1）内嵌函数
+2）引用外部变量
+3）外部函数返回值为内嵌函数
+个人感觉装饰器可以就是闭包，闭包函数不能修改外部引用的变量
+
+12.lambda函数
+def sq(x):
+    return x*x
+
+map(sq, [y for y in range(10)])
+
+#lambda表达式
+for i in map(lambda x: x*x, [y for y in range(10)]):
+    print(i)
+for i in filter(lambda x: x > 3, [y for y in range(8)]):
+    print(i)
+
+from functools import reduce
+print(reduce(lambda x,y: x*y, range(10)))
+
+13.copy和deepcopy：浅拷贝仅仅复制了对象元素的地址，深拷贝复制了对象元素中的内容
+import copy
+a = [1,2,3,['a', 'b']]
+b = a
+c = copy.copy(a)
+d = copy.deepcopy(a)
+
+a.append(4)
+a[3].append('c')
+c[3].append('d')
+d[3].append('e')
+print(a)
+print(b)
+print(c)
+print(d)
+
+14.GC
+1）计数器
+2）标记清除
+3）分代技术
+
+15.编程题
+1）dp和bp
+class Tree():
+    def __init__(self, data, left=None, right=None):
+        self.data = data
+        self.left = left
+        self.right = right
+
+tree = Tree(1, Tree(3, Tree(5), Tree(2)), Tree(7, Tree(9)))
+
+def lookup(tree):
+    stack = [tree]
+    while stack:
+        top = stack.pop(0)
+        print(top.data)
+        if top.left:
+            stack.append(top.left)
+        if top.right:
+            stack.append(top.right)
+
+2）非递归二叉树前中后序遍历
+def pre_lookup(tree):
+    stack = []
+    top = tree
+    while top or stack:
+        while top:
+            print(top.data)
+            stack.append(top)
+            top = top.left
+        if stack:
+            top = stack.pop(-1)
+            top = top.right
+
+def middle_lookup(tree):
+    stack = []
+    top = tree
+    while top or stack:
+        while top:
+            stack.append(top)
+            top = top.left
+        if stack:
+            top = stack.pop(-1)
+            print(top.data)
+            top = top.right
+
+def tail_lookup(tree):
+    stack = []
+    vis = []
+    top = tree
+    while top or stack:
+        while top:  
+            stack.append(top)
+            vis.append(0)
+            top = top.left
+        if stack:
+            top = stack.pop(-1)
+            first = vis.pop(-1)
+            if not first:
+                stack.append(top)
+                vis.append(1)
+                top = top.right
+            else:
+                print(top.data)
+                top = None
+
+def deep(tree):
+    if not tree:
+        return 
+    print(tree.data)
+    deep(tree.left)
+    deep(tree.right)
+
+lookup(tree)
+deep(tree)
+pre_lookup(tree)
+middle_lookup(tree)
+tail_lookup(tree)
+
+3）前序和中序求后序
+两种方法：第一种通过前序和中序求出二叉数，然后后序遍历；第二种
+def end(s1, s2):
+    pass
+
+
+16.编码和解码：python2.x中用unicode表示unicde编码的数据，str表示bytes编码的数据；python3.x用str表示unicode编码数据，用bytes表示bytes数据。
+unicode码使用至少两个字节存储，utf-8对ascii使用1个字节存储，其余的根据字符长度变长存储。
+s1 = '好'
+print(type(s1))
+s2 = u'好'
+print(type(s2))
+python2.x 和 python3.x的结果不一样。
+
+s3 = '好'
+print(type(s3))
+s4 = s3.encode('utf-8')
+print(type(s4))
+
+
+17.高并发和IO多路复用
+select：注册N个fd集合，当有一个或多个fd的io准备就绪后就select就会返回；然后遍历一遍fd集合，处理io就绪的fd。
+poll：在select的基础上将fd_set改成pollfd，其他部分相同。
+epoll：通过epoll_create/epoll_ctl和epoll_wait接口来保证当io就绪时只需要遍历活跃的fd集合。
+
+select的缺点：
+1）最大并发量的限制；取决于一个进程所能打开的最大文件描述符的个数。
+2）由于每次都需要遍历fd集合，O(n)的时间复杂度，导致效率较低；
+3）IO就绪后内核需要将内存数据拷贝到用户空间以通知用户，性能较低。
+poll的缺点：
+修改了fd_set为pollfd结构，避免了select的最大并发的限制；其余的问题依然存在。
+epoll：
+1）epoll的最大并发量和系统最大可以打开文件的数目；
+2）基于网络连接中多数链接时不活跃的原则，epoll_ctl的时候将活跃fd放入就绪队列，epoll_wait的时候只需要遍历就绪队列；
+3）epoll_ctl的时候将fd拷贝到内核，使用mmap通知用户。
+LT和ET模式：LT模式对同一个fd事件会在IO就绪时重复通知，直到状态改变；ET模式则是只会通知一次；因此ET模式的效率更高。
+
+18.tcp的粘包和分包
+1）粘包
+发送包--为了提高网络发送方的利用率，Nagle算法导致发送方的多个数据包会一起发送；
+接收方--应用层来不及接收数据，导致上个数据包还未被接收下个数据包已经到达。
+2）分包：实际使用中，如果数据包的格式和数据结构均不相同时需要考虑对粘包的数据进行分包。
+
+解决方案：
+1）固定数据包的长度，不够的部分补0；
+2）添加消息体长度头部。
+
+19.https的工作原理
+1）tcp三次握手；
+2）客户端验证服务端的证书；
+3）DH算法协商对称加密算法的密钥、hash算法的密钥；
+4）SSL安全加密隧道协商完成；
+5）网页加密传输。
+
+20.数据库原理
+数据库索引：B-Tree、B+Tree
+B-Tree：
+1）B-Tree的度d，d>1，高度为h，h>=1；
+2）非叶子节点由n-1个key和n个指针组成，d<=n<=2d；
+3）叶子节点最少包含一个key和两个指针，最多包涵2d-1个key和2d个指针，叶节点指针为null；
+4）叶子节点具有相同深度h；
+5）key和指针互相间隔，节点两端是指针；
+6）一个节点的key从左到右非递减排列；
+7）节点node中key左边的指针指向的node1，node1的所有key均小于key；右边的指针指向的节点key2均大于key；
+综上，所以B-Tree的查找性能为O(logd(N));
+
+B+Tree：
+B+Tree和B-Tree的区别：
+1）非叶子节点由n个key和n个指针；
+2）所有的叶子节点增加一个链表；
+因此，B+Tree所有的关键字都要到叶子节点才能命中，性能为O(logN);
+
